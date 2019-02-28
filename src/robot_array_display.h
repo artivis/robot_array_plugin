@@ -49,7 +49,6 @@ class RobotArrayDisplay : public rviz::Display
     void updateAlpha();
     void updateRobotDescription();
     void changedTopic();
-    void updateNumRobotsToDisplay();
 
   protected:
     /** @brief Loads a URDF from the ros-param named by our
@@ -81,6 +80,7 @@ class RobotArrayDisplay : public rviz::Display
     rviz::StringProperty* tf_prefix_property_;
     rviz::IntProperty* num_robots_to_display_property_;
     void processMessage(const geometry_msgs::PoseArray::ConstPtr& msg);
+    void updateNumRobotsToDisplay(int n);
 };
 
 }  // namespace robot_array_plugin

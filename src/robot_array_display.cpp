@@ -99,7 +99,7 @@ RobotArrayDisplay::RobotArrayDisplay() : rviz::Display(), has_new_transforms_(fa
                          " This option allows you to set a prefix.  Mainly useful for multi-robot situations.",
         this, SLOT(updateTfPrefix()));
 
-    num_robots_to_display_property_ = new IntProperty("Number of robots to displaz", 3.0, "Number of robots to draw",
+    num_robots_to_display_property_ = new IntProperty("Number of robots to displaz", 1, "Number of robots to draw",
                                                       this, SLOT(updateNumRobotsToDisplay()));
     num_robots_to_display_property_->setMin(1);
 }
@@ -175,21 +175,19 @@ void RobotArrayDisplay::updateTfPrefix()
     context_->queueRender();
 }
 
-void RobotArrayDisplay::updateNumRobotsToDisplay()
+void RobotArrayDisplay::updateNumRobotsToDisplay(int n)
 {
-    const int new_num_robots = num_robots_to_display_property_->getInt();
-    ROS_INFO_STREAM("Updated num robots to display to " << new_num_robots);
+    const std::size_t osize = robots_.size();
+    robots_.resize(n);
 
-    robots_.clear();
-    robots_.resize(new_num_robots);
-    for (auto& robot : robots_)
+    for (std::size_t i=osize; i<robots_.size(); ++i)
     {
-        robot.reset(new rviz::Robot(scene_node_, context_, "Robot: " + getName().toStdString(), this));
-        robot->load(urdf_description_);
-        robot->setVisualVisible(visual_enabled_property_->getValue().toBool());
-        robot->setCollisionVisible(collision_enabled_property_->getValue().toBool());
-        robot->setAlpha(alpha_property_->getFloat());
-        robot->setVisible(true);
+      robots_[i].reset(new rviz::Robot(scene_node_, context_, "Robot: " + getName().toStdString(), this));
+      robots_[i]->load(urdf_description_);
+      robots_[i]->setVisualVisible(visual_enabled_property_->getValue().toBool());
+      robots_[i]->setCollisionVisible(collision_enabled_property_->getValue().toBool());
+      robots_[i]->setAlpha(alpha_property_->getFloat());
+      robots_[i]->setVisible(true);
     }
 }
 
@@ -293,8 +291,9 @@ void RobotArrayDisplay::update(float wall_dt, float ros_dt)
     {
         if ((not last_received_msg_->poses.empty()) and (has_new_transforms_ or update))
         {
-            const size_t num_poses_to_display = std::min(last_received_msg_->poses.size(), robots_.size());
-            ROS_ERROR_STREAM("Displaying " << num_poses_to_display << " poses");
+            const size_t ratio_to_display = num_robots_to_display_property_->getInt();
+
+            updateNumRobotsToDisplay(last_received_msg_->poses.size());
 
             for (const auto& robot : robots_)
             {
@@ -304,15 +303,27 @@ void RobotArrayDisplay::update(float wall_dt, float ros_dt)
                                             tf_prefix_property_->getStdString()));
             }
 
-            const std::vector<size_t> pose_indices_to_display =
-                generateIndices(last_received_msg_->poses.size(), num_poses_to_display);
-            for (size_t i = 0; i < pose_indices_to_display.size(); ++i)
             {
-                const auto& pose = last_received_msg_->poses[pose_indices_to_display[i]];
+              //Initial
+              const auto& pose = last_received_msg_->poses[0];
+              robots_[0]->setVisible(true);
+              robots_[0]->setPosition(toOgre(pose.position));
+              robots_[0]->setOrientation(toOgre(pose.orientation));
+            }
+            for (size_t i = 1; i < robots_.size()-1; i+=ratio_to_display)
+            {
+                const auto& pose = last_received_msg_->poses[i];
 
                 robots_[i]->setVisible(true);
                 robots_[i]->setPosition(toOgre(pose.position));
                 robots_[i]->setOrientation(toOgre(pose.orientation));
+            }
+            {
+              //final
+              const auto& pose = last_received_msg_->poses.back();
+              robots_.back()->setVisible(true);
+              robots_.back()->setPosition(toOgre(pose.position));
+              robots_.back()->setOrientation(toOgre(pose.orientation));
             }
 
             context_->queueRender();
